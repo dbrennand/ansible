@@ -1472,8 +1472,3 @@ class AzureRMAuth(object):
         #         log_file.write(json.dumps(msg, indent=4, sort_keys=True))
         #     else:
         #         log_file.write(msg + u'\n')
-
-if __name__ == "__main__":
-    test = AzureRMModuleBase()
-    print(test)
-    print(repr(test))
