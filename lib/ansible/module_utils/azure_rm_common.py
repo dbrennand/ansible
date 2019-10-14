@@ -802,7 +802,7 @@ class AzureRMModuleBase(object):
         profile_all_clients = AZURE_API_PROFILES.get(api_profile_name)
 
         if not profile_all_clients:
-            raise KeyError("unknown Azure API profile: {0}".format(api_profile_name))
+            raise KeyError("Unknown Azure API profile: {0}".format(api_profile_name))
 
         profile_raw = profile_all_clients.get(client_type_name, None)
 
@@ -923,12 +923,12 @@ class AzureRMModuleBase(object):
         if not self._storage_client:
             self._storage_client = self.get_mgmt_svc_client(StorageManagementClient,
                                                             base_url=self._cloud_environment.endpoints.resource_manager,
-                                                            api_version='2018-07-01')
+                                                            api_version=AZURE_API_PROFILES.get(self.api_profile, {}).get("StorageManagementClient", None))
         return self._storage_client
 
     @property
     def storage_models(self):
-        return StorageManagementClient.models("2018-07-01")
+        return StorageManagementClient.models(AZURE_API_PROFILES.get(self.api_profile, {}).get("StorageManagementClient", None))
 
     @property
     def network_client(self):
@@ -1472,3 +1472,8 @@ class AzureRMAuth(object):
         #         log_file.write(json.dumps(msg, indent=4, sort_keys=True))
         #     else:
         #         log_file.write(msg + u'\n')
+
+if __name__ == "__main__":
+    test = AzureRMModuleBase()
+    print(test)
+    print(repr(test))
