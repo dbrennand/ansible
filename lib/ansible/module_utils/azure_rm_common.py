@@ -799,23 +799,29 @@ class AzureRMModuleBase(object):
         session.verify = False
 
     def get_api_profile(self, client_type_name, api_profile_name):
-        profile_all_clients = AZURE_API_PROFILES.get(api_profile_name)
+        profile_all_clients = AZURE_API_PROFILES.get(api_profile_name, None)
 
         if not profile_all_clients:
             raise KeyError("Unknown Azure API profile: {0}".format(api_profile_name))
 
-        profile_raw = profile_all_clients.get(client_type_name, None)
+        api_version = profile_all_clients.get(client_type_name, None)
 
-        if not profile_raw:
-            self.module.warn("Azure API profile {0} does not define an entry for {1}".format(api_profile_name, client_type_name))
+        if not api_version:
+            self.module.warn("Azure API profile {0} does not define an API version for {1}".format(api_profile_name, client_type_name))
 
-        if isinstance(profile_raw, dict):
-            if not profile_raw.get('default_api_version'):
-                raise KeyError("Azure API profile {0} does not define 'default_api_version'".format(api_profile_name))
-            return profile_raw
+        # Check if api_version is dict object.
+        if isinstance(api_version, dict):
+            # Check the dict object for default_api_version.
+            if not api_version.get('default_api_version'):
+                raise KeyError("Azure API profile {0} does not define 'default_api_version' for client {1}".format(api_profile_name, client_type_name))
+            return api_version
 
+        # Logic needed here for what happens if the dict value is SDKProfile class.
+        if isinstance(api_version, SDKProfile):
+            pass
+        
         # wrap basic strings in a dict that just defines the default
-        return dict(default_api_version=profile_raw)
+        return dict(default_api_version=api_version)
 
     def get_mgmt_svc_client(self, client_type, base_url=None, api_version=None):
         self.log('Getting management service client {0}'.format(client_type.__name__))
@@ -829,25 +835,34 @@ class AzureRMModuleBase(object):
 
         client_kwargs = dict(credentials=self.azure_auth.azure_credentials, subscription_id=self.azure_auth.subscription_id, base_url=base_url)
 
-        api_profile_dict = {}
-
-        if self.api_profile:
-            api_profile_dict = self.get_api_profile(client_type.__name__, self.api_profile)
-
-        # unversioned clients won't accept profile; only send it if necessary
-        # clients without a version specified in the profile will use the default
-        if api_profile_dict and 'profile' in client_argspec.args:
-            client_kwargs['profile'] = api_profile_dict
-
-        # If the client doesn't accept api_version, it's unversioned.
-        # If it does, favor explicitly-specified api_version, fall back to api_profile
-        if 'api_version' in client_argspec.args:
-            profile_default_version = api_profile_dict.get('default_api_version', None)
-            if api_version or profile_default_version:
-                client_kwargs['api_version'] = api_version or profile_default_version
-                if 'profile' in client_kwargs:
-                    # remove profile; only pass API version if specified
-                    client_kwargs.pop('profile')
+        if (api_version not None) and ('api_version' in client_argspec.args):
+            self.log('Setting api_version to {0} for {1}'.format(api_version, client_type.__name__))
+            client_kwargs['api_version'] = api_version
+            if 'profile' in client_kwargs:
+                # remove profile; only pass API version if specified
+                client_kwargs.pop('profile')
+        else:
+            # api_version param is None or the client_type doesn't accept api_version.
+            # Get the latest profile.
+            self.log('Fetching API version from "latest" profile for client {0}'.format(client_type.__name__))
+            api_profile_dict = self.get_api_profile(client_type.__name__, "latest")
+            default_api_version = api_profile_dict.get('default_api_version', None)
+            if default_api_version not None:
+                # Check first for profile.
+                # https://github.com/ansible/ansible/blob/devel/lib/ansible/module_utils/azure_rm_common.py#L839
+                if 'profile' in client_argspec.args:
+                    client_kwargs['profile'] = api_profile_dict
+                else:
+                    # Profile isn't present. Only pass API version.
+                    client_kwargs['api_version'] = default_api_version
+                    # Ensure profile is removed.
+                    try:
+                        client_kwargs.pop('profile')
+                    except KeyError:
+                        pass
+            else:
+                # .get() returned None. Raise some error. Not sure what yet.
+                raise RuntimeError
 
         client = client_type(**client_kwargs)
 
