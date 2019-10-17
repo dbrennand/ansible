@@ -835,7 +835,7 @@ class AzureRMModuleBase(object):
 
         client_kwargs = dict(credentials=self.azure_auth.azure_credentials, subscription_id=self.azure_auth.subscription_id, base_url=base_url)
 
-        if (api_version not None) and ('api_version' in client_argspec.args):
+        if (api_version is not None) and ('api_version' in client_argspec.args):
             self.log('Setting api_version to {0} for {1}'.format(api_version, client_type.__name__))
             client_kwargs['api_version'] = api_version
             if 'profile' in client_kwargs:
@@ -847,7 +847,7 @@ class AzureRMModuleBase(object):
             self.log('Fetching API version from "latest" profile for client {0}'.format(client_type.__name__))
             api_profile_dict = self.get_api_profile(client_type.__name__, "latest")
             default_api_version = api_profile_dict.get('default_api_version', None)
-            if default_api_version not None:
+            if default_api_version is not None:
                 # Check first for profile.
                 # https://github.com/ansible/ansible/blob/devel/lib/ansible/module_utils/azure_rm_common.py#L839
                 if 'profile' in client_argspec.args:
